@@ -30,6 +30,7 @@ class Window(Adw.ApplicationWindow):
         self.kind = None
         self.busy = False
         self._buttons = []
+        self._watchers = []
         self._battery_checked = 0.0
 
         self.stack = Adw.ViewStack()
@@ -72,6 +73,12 @@ class Window(Adw.ApplicationWindow):
         self._buttons.append((button, cable_only, ready))
         self.refresh_buttons()
 
+    def watch_connection(self, callback):
+        """callback(kind) runs whenever the way the keyboard is connected
+        changes; kind is None when it isn't."""
+        self._watchers.append(callback)
+        callback(self.kind)
+
     def refresh_buttons(self):
         for button, cable_only, ready in self._buttons:
             usable = self.connected and not self.busy
@@ -93,7 +100,11 @@ class Window(Adw.ApplicationWindow):
         except device.NotFound as e:
             problem = str(e)
         self.connected = problem is None
+        previous = self.kind
         self.kind = kind if self.connected else None
+        if self.kind != previous:
+            for callback in self._watchers:
+                callback(self.kind)
 
         if problem:
             self.banner.set_title(problem)

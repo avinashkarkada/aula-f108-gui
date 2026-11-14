@@ -4,7 +4,7 @@ import threading
 
 from gi.repository import Adw, Gdk, GLib, Gtk
 
-from .. import lcd
+from .. import device, lcd
 
 PREVIEW_SCALE = 1.5
 
@@ -53,6 +53,13 @@ class ScreenPage(Adw.PreferencesPage):
                             ready=lambda: self.data is not None)
         group.add(self.upload)
 
+        # says why the button is greyed out
+        self.hint = Gtk.Label(wrap=True, justify=Gtk.Justification.CENTER,
+                              margin_top=8)
+        self.hint.add_css_class("dim-label")
+        group.add(self.hint)
+        window.watch_connection(self._connection_changed)
+
         group = Adw.PreferencesGroup(title="Clock")
         self.add(group)
 
@@ -64,6 +71,17 @@ class ScreenPage(Adw.PreferencesPage):
         window.watch_button(button)
         row.add_suffix(button)
         group.add(row)
+
+    def _connection_changed(self, kind):
+        if kind == device.USB:
+            text = ""
+        elif kind == device.DONGLE:
+            text = ("Pictures can't be sent through the 2.4G receiver. Plug "
+                    "in the USB cable and switch the keyboard to USB mode.")
+        else:
+            text = "Connect the keyboard with the USB cable to send a picture."
+        self.hint.set_label(text)
+        self.hint.set_visible(bool(text))
 
     # --- choosing and previewing ---
 
