@@ -3,8 +3,7 @@
 Configure the Aula F108 Pro keyboard on Linux. The official software only runs
 on Windows.
 
-This is a work in progress. So far there is a command line tool; a GTK app is
-being built on top of it.
+There is a small GTK app and a command line tool. Still a work in progress.
 
 ## What it can do
 
@@ -16,7 +15,10 @@ Planned: per-key colours and key remapping.
 
 ## Requirements
 
-- Python 3.10 or newer, nothing else
+- Python 3.10 or newer
+- GTK 4 and libadwaita with their Python bindings for the app. On Ubuntu:
+  `sudo apt install python3-gi gir1.2-gtk-4.0 gir1.2-adw-1`. The command line
+  tool needs nothing besides Python.
 - the keyboard connected with the USB cable and switched to USB mode. Settings
   can't be written over the 2.4G receiver or Bluetooth, but once written they
   stay on the keyboard and keep working wirelessly.
@@ -33,7 +35,13 @@ sudo udevadm control --reload
 
 ## Usage
 
-Run from the checkout:
+Run from the checkout. Without arguments the app opens:
+
+```
+python3 -m aula_f108
+```
+
+With arguments it works as a command line tool:
 
 ```
 python3 -m aula_f108 status

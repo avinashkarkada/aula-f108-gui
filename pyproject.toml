@@ -13,8 +13,11 @@ requires-python = ">=3.10"
 [project.scripts]
 aula-f108 = "aula_f108.cli:main"
 
+[project.gui-scripts]
+aula-f108-gui = "aula_f108.gui:main"
+
 [tool.setuptools]
-packages = ["aula_f108"]
+packages = ["aula_f108", "aula_f108.gui"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
