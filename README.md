@@ -28,7 +28,7 @@ on Windows.
 - Pillow (`python3-pil`), only for pictures on the screen
 - the keyboard connected with the USB cable (in USB mode) or through its
   2.4G receiver. The app works out which one it is. Bluetooth isn't
-  supported. Settings are stored on the keyboard, so its persistent.
+  supported. Settings are stored on the keyboard, so they're persistent.
 
 ## Install
 
