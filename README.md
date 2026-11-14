@@ -9,9 +9,10 @@ There is a small GTK app and a command line tool. Still a work in progress.
 
 - switch between the 20 built-in backlight effects and set colour, brightness,
   speed and direction
+- paint individual keys in any colour
 - set the clock on the keyboard's screen
 
-Planned: per-key colours and key remapping.
+Planned: key remapping.
 
 ## Requirements
 
@@ -48,6 +49,7 @@ python3 -m aula_f108 status
 python3 -m aula_f108 light breath --color ff0080 --brightness 4
 python3 -m aula_f108 light rolling --rainbow --speed 2
 python3 -m aula_f108 light off
+python3 -m aula_f108 paint w=00ff00 a=00ff00 s=00ff00 d=00ff00 --all 202020
 python3 -m aula_f108 clock
 ```
 

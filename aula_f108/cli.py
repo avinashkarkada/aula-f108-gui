@@ -2,7 +2,7 @@ import argparse
 import datetime
 import sys
 
-from . import device, protocol
+from . import device, keys, protocol
 
 
 def _effect(value):
@@ -24,6 +24,14 @@ def _color(value):
         return tuple(bytes.fromhex(value))
     except ValueError:
         raise argparse.ArgumentTypeError("colour should look like ff8800")
+
+
+def _key_color(value):
+    name, sep, color = value.partition("=")
+    if not sep or name.lower() not in keys.BY_NAME:
+        raise argparse.ArgumentTypeError(
+            f"expected KEY=COLOUR with a known key name, got {value!r}")
+    return keys.BY_NAME[name.lower()].index, _color(color)
 
 
 def _dump(steps):
@@ -56,6 +64,13 @@ def main(argv=None):
     light.add_argument("-r", "--reverse", action="store_true")
     light.add_argument("--rainbow", action="store_true")
 
+    paint = sub.add_parser("paint", help="set colours for individual keys")
+    paint.add_argument("keys", nargs="*", type=_key_color, metavar="KEY=COLOUR",
+                       help="for example w=00ff00 esc=ff0000")
+    paint.add_argument("--all", type=_color, metavar="COLOUR",
+                       help="colour for every key not listed")
+    paint.add_argument("-b", "--brightness", type=int, default=5)
+
     sub.add_parser("clock", help="set the screen clock to the current time")
 
     args = parser.parse_args(argv)
@@ -69,6 +84,12 @@ def main(argv=None):
             _run(protocol.lighting(args.effect, args.color, args.brightness,
                                    args.speed, args.reverse, args.rainbow),
                  args.dry_run)
+        elif args.command == "paint":
+            table = {}
+            if args.all:
+                table = {k.index: args.all for k in keys.KEYS}
+            table.update(args.keys)
+            _run(protocol.per_key(table, args.brightness), args.dry_run)
         elif args.command == "clock":
             _run(protocol.clock(datetime.datetime.now()), args.dry_run)
     except (device.KeyboardError, ValueError) as e:

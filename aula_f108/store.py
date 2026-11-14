@@ -17,6 +17,11 @@ DEFAULTS = {
         "reverse": False,
         "rainbow": True,
     },
+    "per_key": {
+        "brightness": 5,
+        "brush": [0, 210, 255],
+        "colors": {},
+    },
 }
 
 
