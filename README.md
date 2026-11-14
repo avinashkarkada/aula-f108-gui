@@ -7,9 +7,9 @@ There is a small GTK app and a command line tool. Still a work in progress.
 
 ![Key colours page](docs/key-colours.png)
 
-| Lighting | Remap |
-| --- | --- |
-| ![Lighting page](docs/lighting.png) | ![Remap page](docs/remap.png) |
+| Lighting | Remap | Screen |
+| --- | --- | --- |
+| ![Lighting page](docs/lighting.png) | ![Remap page](docs/remap.png) | ![Screen page](docs/screen.png) |
 
 ## What it can do
 
