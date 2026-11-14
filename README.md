@@ -30,7 +30,22 @@ There is a small GTK app and a command line tool. Still a work in progress.
   can't be written over the 2.4G receiver or Bluetooth, but once written they
   stay on the keyboard and keep working wirelessly.
 
-## Setup
+## Install
+
+### Debian / Ubuntu package
+
+Build the package and install it:
+
+```
+./packaging/build-deb.sh
+sudo apt install ./dist/aula-f108_0.1.0_all.deb
+```
+
+That pulls in the GTK bits, sets up the udev rule and adds the app to the
+menu. The command is `aula-f108`: on its own it opens the app, with arguments
+it's the command line tool. Remove it again with `sudo apt remove aula-f108`.
+
+### From the checkout
 
 Install the udev rule so the keyboard can be reached without root, then unplug
 and replug the cable:
@@ -50,7 +65,9 @@ To get an entry in the app menu (optional, per user, no root needed):
 
 ## Usage
 
-Run from the checkout. Without arguments the app opens:
+The examples below run from the checkout. With the package installed, use
+`aula-f108` in place of `python3 -m aula_f108`. Without arguments the app
+opens:
 
 ```
 python3 -m aula_f108
