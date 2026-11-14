@@ -1,6 +1,6 @@
 from gi.repository import Adw, Gdk, Gtk
 
-from .. import keys, protocol
+from .. import keys
 from .keyboard import KeyboardView
 from .lighting import apply_button, color_from, level_scale, rgba_from
 
@@ -107,5 +107,5 @@ class PerKeyPage(Gtk.ScrolledWindow):
         }
         table = {keys.BY_NAME[name].index: c
                  for name, c in self.colors.items()}
-        self.window.send(protocol.per_key(table, brightness),
+        self.window.send(lambda kb: kb.per_key(table, brightness),
                          "Key colours updated")

@@ -2,8 +2,6 @@ import datetime
 
 from gi.repository import Adw, Gtk
 
-from .. import protocol
-
 
 class ScreenPage(Adw.PreferencesPage):
     def __init__(self, window):
@@ -23,4 +21,5 @@ class ScreenPage(Adw.PreferencesPage):
         group.add(row)
 
     def _sync(self, _button):
-        self.window.send(protocol.clock(datetime.datetime.now()), "Clock set")
+        self.window.send(lambda kb: kb.clock(datetime.datetime.now()),
+                         "Clock set")

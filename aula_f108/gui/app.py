@@ -15,6 +15,11 @@ from .screen import ScreenPage  # noqa: E402
 
 APP_ID = "io.github.avinashkarkada.AulaF108"
 
+WIRELESS_NOTE = ("Connected through the 2.4G receiver. Wireless support is "
+                 "experimental: if a change doesn't show up, apply it again "
+                 "or use the cable.")
+BATTERY_EVERY = 60     # seconds between battery readings
+
 
 class Window(Adw.ApplicationWindow):
     def __init__(self, app):
@@ -22,8 +27,10 @@ class Window(Adw.ApplicationWindow):
                          default_width=920, default_height=680)
         self.settings = store.load()
         self.connected = False
+        self.kind = None
         self.busy = False
         self._buttons = []
+        self._battery_checked = 0.0
 
         self.stack = Adw.ViewStack()
         self.toasts = Adw.ToastOverlay(child=self.stack)
@@ -31,6 +38,10 @@ class Window(Adw.ApplicationWindow):
         header = Adw.HeaderBar()
         header.set_title_widget(Adw.ViewSwitcher(
             stack=self.stack, policy=Adw.ViewSwitcherPolicy.WIDE))
+        self.battery = Gtk.Label(visible=False, margin_start=6)
+        self.battery.add_css_class("dim-label")
+        self.battery.set_tooltip_text("Keyboard battery")
+        header.pack_start(self.battery)
 
         self.banner = Adw.Banner()
 
@@ -66,24 +77,61 @@ class Window(Adw.ApplicationWindow):
 
     def _check_connection(self):
         problem = None
+        kind = None
         try:
-            path = device.find()
-            if not os.access(path, os.R_OK | os.W_OK):
+            link = device.find()
+            kind = link.kind
+            if not os.access(link.path, os.R_OK | os.W_OK):
                 problem = ("The keyboard is connected but can't be opened. "
-                           "Install the udev rule and replug the cable.")
+                           "Install the udev rule and replug it.")
         except device.NotFound as e:
             problem = str(e)
         self.connected = problem is None
-        self.banner.set_title(problem or "")
-        self.banner.set_revealed(problem is not None)
+        self.kind = kind if self.connected else None
+
+        if problem:
+            self.banner.set_title(problem)
+        elif kind == device.DONGLE:
+            self.banner.set_title(WIRELESS_NOTE)
+        self.banner.set_revealed(problem is not None or kind == device.DONGLE)
+
+        if self.kind == device.DONGLE:
+            self._update_battery()
+        else:
+            self.battery.set_visible(False)
+            self._battery_checked = 0.0
         self._refresh_buttons()
         return GLib.SOURCE_CONTINUE
+
+    def _update_battery(self):
+        now = GLib.get_monotonic_time() / 1e6
+        if self.busy or now - self._battery_checked < BATTERY_EVERY:
+            return
+        self._battery_checked = now
+
+        def work():
+            try:
+                level = device.run(lambda kb: kb.battery())
+            except device.KeyboardError:
+                level = None
+            GLib.idle_add(show, level)
+
+        def show(level):
+            # may have been unplugged in the meantime
+            if self.kind == device.DONGLE and level is not None:
+                self.battery.set_label(f"Battery {level}%")
+                self.battery.set_visible(True)
+            else:
+                self.battery.set_visible(False)
+            return GLib.SOURCE_REMOVE
+
+        threading.Thread(target=work, daemon=True).start()
 
     def toast(self, text):
         self.toasts.add_toast(Adw.Toast(title=text, timeout=3))
 
-    def send(self, steps, done_text, on_done=None):
-        """Send packets without freezing the window."""
+    def send(self, job, done_text, on_done=None):
+        """Run job(keyboard) without freezing the window."""
         if self.busy:
             return
         self.busy = True
@@ -92,7 +140,7 @@ class Window(Adw.ApplicationWindow):
         def work():
             error = None
             try:
-                device.send(steps)
+                device.run(job)
             except device.KeyboardError as e:
                 error = str(e)
             GLib.idle_add(finished, error)

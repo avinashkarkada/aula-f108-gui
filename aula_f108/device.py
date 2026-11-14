@@ -1,21 +1,47 @@
 """Talking to the keyboard through hidraw.
 
-No libusb needed: the kernel already exposes the vendor interface as a
-/dev/hidraw node and feature reports can be sent with two ioctls.
+No libusb needed: the kernel already exposes the vendor interfaces as
+/dev/hidraw nodes. The keyboard can be reached two ways and they don't
+work alike:
+
+  cable     64-byte feature reports, sent with two ioctls
+  receiver  32-byte reports, plain write() and read()
+
+connect() picks whichever is there and gives back an object with the same
+methods either way.
 """
 
 import fcntl
 import glob
 import os
+import select
+import threading
 import time
+from collections import namedtuple
+
+from . import protocol, wireless
 
 WIRED_ID = (0x0C45, 0x800A)
 DONGLE_ID = (0x05AC, 0x024F)   # the 2.4G receiver pretends to be an Apple keyboard
-CONFIG_INTERFACE = 3
+CONFIG_INTERFACE = 3           # same number on both
+
+USB = "usb"
+DONGLE = "dongle"
 
 COMMAND_DELAY = 0.035
 
+# receiver timing: how long to wait for the echo of a frame and how often
+# to send it again when none comes (a frame gets lost now and then)
+ECHO_WAIT = 0.25
+RESENDS = 4
+FRAME_GAP = 0.002
+
 SYSFS_HIDRAW = "/sys/class/hidraw"
+
+Link = namedtuple("Link", "kind path")
+
+# one conversation with the keyboard at a time
+_lock = threading.Lock()
 
 
 class KeyboardError(Exception):
@@ -71,37 +97,38 @@ def _scan(sysfs=SYSFS_HIDRAW):
 
 
 def find(sysfs=SYSFS_HIDRAW):
-    """Path of the hidraw node used for configuration.
+    """Where the keyboard can be configured, as a Link.
 
-    Raises NotFound if the keyboard isn't connected with the cable. The
-    message says so when only the wireless receiver is plugged in, since
-    that's the usual reason.
+    The cable wins when both are plugged in: a keyboard that shows up on
+    USB is in USB mode and isn't listening to the receiver.
     """
-    dongle = False
+    dongle = None
     for vendor, product, iface, node in _scan(sysfs):
-        if (vendor, product) == WIRED_ID and iface == CONFIG_INTERFACE:
-            return "/dev/" + node
+        if iface != CONFIG_INTERFACE:
+            continue
+        if (vendor, product) == WIRED_ID:
+            return Link(USB, "/dev/" + node)
         if (vendor, product) == DONGLE_ID:
-            dongle = True
+            dongle = Link(DONGLE, "/dev/" + node)
     if dongle:
-        raise NotFound("Only the 2.4G receiver was found. Settings can only "
-                       "be changed over the USB cable: plug it in and switch "
-                       "the keyboard to USB mode.")
-    raise NotFound("Keyboard not found. Connect it with the USB cable and "
-                   "switch it to USB mode.")
+        return dongle
+    raise NotFound("Keyboard not found. Plug in the USB cable or the 2.4G "
+                   "receiver.")
 
 
-class Keyboard:
-    def __init__(self, path=None):
-        self.path = path or find()
-        try:
-            self._fd = os.open(self.path, os.O_RDWR)
-        except PermissionError:
-            raise AccessDenied(f"No permission to open {self.path}. Install "
-                               "the udev rule from the udev/ folder and "
-                               "replug the keyboard.") from None
-        except OSError as e:
-            raise KeyboardError(f"Could not open {self.path}: {e}") from None
+def _open(path, flags):
+    try:
+        return os.open(path, flags)
+    except PermissionError:
+        raise AccessDenied(f"No permission to open {path}. Install the udev "
+                           "rule from the udev/ folder and replug.") from None
+    except OSError as e:
+        raise KeyboardError(f"Could not open {path}: {e}") from None
+
+
+class _Base:
+    kind = None
+    _fd = None
 
     def close(self):
         if self._fd is not None:
@@ -113,6 +140,35 @@ class Keyboard:
 
     def __exit__(self, *exc):
         self.close()
+
+    def lighting(self, effect, color=(255, 255, 255), brightness=5, speed=3,
+                 direction=0, rainbow=False):
+        self.send(self._packets.lighting(effect, color, brightness, speed,
+                                         direction, rainbow))
+
+    def per_key(self, colors, brightness=5):
+        self.send(self._packets.per_key(colors, brightness))
+
+    def remap(self, slots):
+        self.send(self._packets.remap(slots))
+
+    def clock(self, now):
+        self.send(self._packets.clock(now))
+
+    def battery(self):
+        """Charge in percent, or None when it can't be read."""
+        return None
+
+
+class Keyboard(_Base):
+    """The keyboard on its USB cable."""
+
+    kind = USB
+    _packets = protocol
+
+    def __init__(self, path):
+        self.path = path
+        self._fd = _open(path, os.O_RDWR)
 
     def _set(self, payload):
         # leading zero is the report id, the interface doesn't use one
@@ -148,6 +204,73 @@ class Keyboard:
             raise KeyboardError(f"Lost contact with the keyboard: {e}") from None
 
 
-def send(steps, progress=None):
-    with Keyboard() as kb:
-        kb.send(steps, progress)
+class Dongle(_Base):
+    """The keyboard through its 2.4G receiver."""
+
+    kind = DONGLE
+    _packets = wireless
+
+    def __init__(self, path):
+        self.path = path
+        self._fd = _open(path, os.O_RDWR | os.O_NONBLOCK)
+
+    def _write(self, frame):
+        os.write(self._fd, b"\x00" + frame)     # no report id here either
+
+    def _poll(self, timeout):
+        """One report from the receiver, or None if nothing came in time."""
+        ready, _, _ = select.select([self._fd], [], [], timeout)
+        if not ready:
+            return None
+        try:
+            return os.read(self._fd, 64)
+        except BlockingIOError:
+            return None
+
+    def _exchange(self, frame):
+        """Send a frame and wait for its echo, trying again a few times."""
+        for _ in range(RESENDS + 1):
+            while self._poll(0) is not None:    # drop anything stale
+                pass
+            self._write(frame)
+            deadline = time.monotonic() + ECHO_WAIT
+            while True:
+                left = deadline - time.monotonic()
+                if left <= 0:
+                    break
+                reply = self._poll(left)
+                if reply is not None and reply[:3] == frame[:3]:
+                    return reply
+        raise KeyboardError("No answer through the receiver. Check that the "
+                            "keyboard is switched on and in 2.4G mode.")
+
+    def send(self, frames, progress=None):
+        total = len(frames)
+        try:
+            for i, frame in enumerate(frames, 1):
+                self._exchange(frame)
+                time.sleep(FRAME_GAP)
+                if progress:
+                    progress(i, total)
+        except OSError as e:
+            raise KeyboardError(f"Lost contact with the receiver: {e}") from None
+
+    def battery(self):
+        try:
+            reply = self._exchange(wireless.battery_query())
+        except OSError as e:
+            raise KeyboardError(f"Lost contact with the receiver: {e}") from None
+        return wireless.battery_level(reply)
+
+
+def connect(sysfs=SYSFS_HIDRAW):
+    link = find(sysfs)
+    return (Keyboard if link.kind == USB else Dongle)(link.path)
+
+
+def run(job):
+    """Open the keyboard, call job(keyboard) and close it again. Use this
+    rather than connect() when other threads may be talking to it too."""
+    with _lock:
+        with connect() as keyboard:
+            return job(keyboard)

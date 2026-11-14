@@ -1,4 +1,5 @@
-"""Packet builders for the wired (USB-C) configuration protocol.
+"""Packet builders for the wired (USB-C) configuration protocol. The 2.4G
+receiver speaks a different one, see wireless.py.
 
 Everything goes over 64-byte HID feature reports on interface 3. A change is
 a short transaction: begin, an init packet naming what is being written, the
@@ -97,6 +98,36 @@ def _level(value, what):
     return value
 
 
+def color_table(colors):
+    """Per-key colour table without its trailer: 4 bytes per slot, the key
+    index followed by r, g, b."""
+    table = bytearray(TABLE_SIZE)
+    for index, (r, g, b) in colors.items():
+        if not 1 <= index <= MAX_SLOT:
+            raise ValueError(f"bad key index {index}")
+        table[index * 4:index * 4 + 4] = bytes((index, r, g, b))
+    return table
+
+
+def slot_table(slots):
+    """Remap table without its trailer, 4 bytes per key (see remap.py)."""
+    table = bytearray(TABLE_SIZE)
+    for index, slot in slots.items():
+        if not 1 <= index <= MAX_SLOT:
+            raise ValueError(f"bad key index {index}")
+        if len(slot) != 4:
+            raise ValueError("a slot is 4 bytes")
+        table[index * 4:index * 4 + 4] = slot
+    return table
+
+
+def check_lighting(effect, brightness, speed):
+    if not 0 <= effect < len(EFFECTS):
+        raise ValueError(f"unknown effect {effect}")
+    _level(brightness, "brightness")
+    _level(speed, "speed")
+
+
 def _light_init():
     return Step(_packet((0x04, 0x13), {8: 0x01}), True)
 
@@ -104,10 +135,7 @@ def _light_init():
 def lighting(effect, color=(255, 255, 255), brightness=5, speed=3,
              direction=0, rainbow=False):
     """Switch the backlight to one of the built-in effects."""
-    if not 0 <= effect < len(EFFECTS):
-        raise ValueError(f"unknown effect {effect}")
-    _level(brightness, "brightness")
-    _level(speed, "speed")
+    check_lighting(effect, brightness, speed)
 
     at = {14: 0x55, 15: 0xAA}
     if effect != 0:
@@ -121,17 +149,13 @@ def lighting(effect, color=(255, 255, 255), brightness=5, speed=3,
 def per_key(colors, brightness=5):
     """Custom lighting. `colors` maps key index -> (r, g, b); keys that are
     left out stay dark."""
-    _level(brightness, "brightness")
+    check_lighting(0, brightness, 0)
 
     # the keyboard has to be put in custom mode first
     mode = _packet((CUSTOM_MODE,), {9: brightness, 14: 0x55, 15: 0xAA})
     steps = [_begin(), _light_init(), Step(mode, False), _apply(), _finalize()]
 
-    table = bytearray(TABLE_SIZE)
-    for index, (r, g, b) in colors.items():
-        if not 1 <= index <= MAX_SLOT:
-            raise ValueError(f"bad key index {index}")
-        table[index * 4:index * 4 + 4] = bytes((index, r, g, b))
+    table = color_table(colors)
     table[-2:] = b"\x55\xAA"
 
     steps += [_begin(), Step(_packet((0x04, 0x23), {8: 0x09}), True)]
@@ -148,13 +172,7 @@ def remap(slots):
     """Replace the remap table. `slots` maps key index -> 4 bytes (see
     remap.py); keys that are left out go back to normal, so an empty dict
     resets everything."""
-    table = bytearray(TABLE_SIZE)
-    for index, slot in slots.items():
-        if not 1 <= index <= MAX_SLOT:
-            raise ValueError(f"bad key index {index}")
-        if len(slot) != 4:
-            raise ValueError("a slot is 4 bytes")
-        table[index * 4:index * 4 + 4] = slot
+    table = slot_table(slots)
     # byte order of the trailer is the other way round here
     table[-2:] = b"\xAA\x55"
 

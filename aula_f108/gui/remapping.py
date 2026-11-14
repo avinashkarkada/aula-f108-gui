@@ -1,6 +1,6 @@
 from gi.repository import Adw, Gtk
 
-from .. import keys, protocol, remap
+from .. import keys, remap
 from .keyboard import KeyboardView
 from .lighting import apply_button
 
@@ -181,4 +181,5 @@ class RemapPage(Gtk.ScrolledWindow):
         count = len(self.bindings)
         done = ("Keys are back to normal" if count == 0 else
                 f"{count} key{'s' if count != 1 else ''} remapped")
-        self.window.send(protocol.remap(remap.table(self.bindings)), done)
+        slots = remap.table(self.bindings)
+        self.window.send(lambda kb: kb.remap(slots), done)

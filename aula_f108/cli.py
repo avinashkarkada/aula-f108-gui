@@ -2,7 +2,7 @@ import argparse
 import datetime
 import sys
 
-from . import device, keys, protocol
+from . import device, keys, protocol, wireless
 from . import remap as remapping
 
 
@@ -35,17 +35,26 @@ def _key_color(value):
     return keys.BY_NAME[name.lower()].index, _color(color)
 
 
-def _dump(steps):
-    for step in steps:
-        tail = "  <- read back" if step.readback else ""
-        print(step.payload.hex(" ") + tail)
+class _Printer(device._Base):
+    """Stands in for the keyboard with --dry-run: prints what would go out."""
+
+    def __init__(self, packets):
+        self._packets = packets
+
+    def send(self, packets, progress=None):
+        for packet in packets:
+            if isinstance(packet, bytes):
+                print(packet.hex(" "))
+            else:
+                tail = "  <- read back" if packet.readback else ""
+                print(packet.payload.hex(" ") + tail)
 
 
-def _run(steps, dry_run):
-    if dry_run:
-        _dump(steps)
+def _run(job, args):
+    if args.dry_run:
+        job(_Printer(wireless if args.receiver else protocol))
     else:
-        device.send(steps)
+        device.run(job)
 
 
 def main(argv=None):
@@ -53,6 +62,9 @@ def main(argv=None):
         prog="aula-f108", description="Configure an Aula F108 Pro keyboard.")
     parser.add_argument("--dry-run", action="store_true",
                         help="print the packets instead of sending them")
+    parser.add_argument("--receiver", action="store_true",
+                        help="with --dry-run, show the packets for the 2.4G "
+                             "receiver instead of the cable")
     sub = parser.add_subparsers(dest="command", required=True)
 
     sub.add_parser("status", help="check that the keyboard can be reached")
@@ -86,19 +98,24 @@ def main(argv=None):
 
     try:
         if args.command == "status":
-            path = device.find()
-            with device.Keyboard(path):
-                print(f"keyboard ready on {path}")
+            def report(kb):
+                if kb.kind == device.USB:
+                    print(f"keyboard ready on {kb.path} (USB cable)")
+                    return
+                level = kb.battery()
+                charge = f", battery {level}%" if level is not None else ""
+                print(f"keyboard ready on {kb.path} (2.4G receiver{charge})")
+            device.run(report)
         elif args.command == "light":
-            _run(protocol.lighting(args.effect, args.color, args.brightness,
-                                   args.speed, args.reverse, args.rainbow),
-                 args.dry_run)
+            _run(lambda kb: kb.lighting(args.effect, args.color,
+                                        args.brightness, args.speed,
+                                        args.reverse, args.rainbow), args)
         elif args.command == "paint":
             table = {}
             if args.all:
                 table = {k.index: args.all for k in keys.KEYS}
             table.update(args.keys)
-            _run(protocol.per_key(table, args.brightness), args.dry_run)
+            _run(lambda kb: kb.per_key(table, args.brightness), args)
         elif args.command == "remap":
             if bool(args.bindings) == args.reset:
                 parser.error("give some KEY=TARGET pairs, or --reset")
@@ -108,9 +125,10 @@ def main(argv=None):
                 if not sep:
                     parser.error(f"expected KEY=TARGET, got {pair!r}")
                 bindings[name.lower()] = target
-            _run(protocol.remap(remapping.table(bindings)), args.dry_run)
+            slots = remapping.table(bindings)
+            _run(lambda kb: kb.remap(slots), args)
         elif args.command == "clock":
-            _run(protocol.clock(datetime.datetime.now()), args.dry_run)
+            _run(lambda kb: kb.clock(datetime.datetime.now()), args)
     except (device.KeyboardError, ValueError) as e:
         print(f"error: {e}", file=sys.stderr)
         return 1

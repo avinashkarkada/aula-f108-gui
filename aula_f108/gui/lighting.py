@@ -110,7 +110,8 @@ class LightingPage(Adw.PreferencesPage):
             "rainbow": self.rainbow.get_active(),
         }
         self.window.settings["lighting"] = values
-        steps = protocol.lighting(values["effect"], values["color"],
-                                  values["brightness"], values["speed"],
-                                  values["reverse"], values["rainbow"])
-        self.window.send(steps, "Lighting updated")
+        self.window.send(
+            lambda kb: kb.lighting(values["effect"], values["color"],
+                                   values["brightness"], values["speed"],
+                                   values["reverse"], values["rainbow"]),
+            "Lighting updated")

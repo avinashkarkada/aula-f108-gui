@@ -26,9 +26,10 @@ There is a small GTK app and a command line tool. Still a work in progress.
 - GTK 4.10+ and libadwaita 1.4+ with their Python bindings for the app. On
   Ubuntu: `sudo apt install python3-gi gir1.2-gtk-4.0 gir1.2-adw-1`. The
   command line tool needs nothing besides Python.
-- the keyboard connected with the USB cable and switched to USB mode. Settings
-  can't be written over the 2.4G receiver or Bluetooth, but once written they
-  stay on the keyboard and keep working wirelessly.
+- the keyboard connected with the USB cable (in USB mode) or through its
+  2.4G receiver. The app works out which one it is. Bluetooth isn't
+  supported. Settings are stored on the keyboard, so they stay when you
+  switch modes.
 
 ## Install
 
@@ -38,7 +39,7 @@ Build the package and install it:
 
 ```
 ./packaging/build-deb.sh
-sudo apt install ./dist/aula-f108_0.1.1_all.deb
+sudo apt install ./dist/aula-f108_0.2.0_all.deb
 ```
 
 That pulls in the GTK bits, sets up the udev rule and adds the app to the
@@ -48,7 +49,7 @@ it's the command line tool. Remove it again with `sudo apt remove aula-f108`.
 ### From the checkout
 
 Install the udev rule so the keyboard can be reached without root, then unplug
-and replug the cable:
+and replug the cable or the receiver:
 
 ```
 sudo cp udev/70-aula-f108.rules /etc/udev/rules.d/
@@ -88,6 +89,19 @@ python3 -m aula_f108 clock
 
 `--dry-run` prints the packets instead of sending them.
 
+## Over the 2.4G receiver (experimental)
+
+Everything above also works through the receiver, without the cable, and in
+that mode the app shows the keyboard's battery level too. The receiver uses a
+different protocol from the cable. I worked it out from the vendor's Windows
+software and have only tried it on my own keyboard, so:
+
+- now and then a packet gets lost on the way. The app sends it again, but if
+  a change doesn't show up, apply it once more.
+- the receiver answers for itself, so the app can't always tell whether the
+  keyboard really took a change.
+- if something misbehaves, the cable is the dependable route.
+
 ## Tested on
 
 Ubuntu 24.04 with one keyboard (USB id `0c45:800a`). It should work on other
@@ -98,7 +112,7 @@ line tool still works there.
 ## Good to know
 
 - The keyboard can't be asked for its current settings, it only accepts new
-  ones.
+  ones. The app shows what it last sent.
 - Remapping always sends the whole table, so `remap` replaces whatever was
   set before. `remap --reset` puts every key back to normal, which is handy
   if a remap goes wrong.
@@ -115,9 +129,11 @@ python3 -m pytest
 
 ## Credits
 
-The protocol was worked out by Parsia Hakimian in
+The cable protocol was worked out by Parsia Hakimian in
 [parsiya/f108-pro](https://github.com/parsiya/f108-pro). This project
-reimplements the parts it needs in Python based on those notes.
+reimplements the parts it needs in Python based on those notes. The receiver
+protocol isn't covered there; that part comes from reading how the vendor's
+software talks to the receiver.
 
 ## License
 

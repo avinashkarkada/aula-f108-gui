@@ -1,2 +1,9 @@
-# Lets the logged-in user talk to the Aula F108 Pro without root (USB cable mode).
+# Lets the logged-in user configure the Aula F108 Pro without root.
+
+# on the USB cable
 KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="0c45", ATTRS{idProduct}=="800a", TAG+="uaccess"
+
+# through the 2.4G receiver. Only its configuration interface is opened up,
+# not the ones that carry keystrokes.
+KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="05ac", ATTRS{idProduct}=="024f", ENV{AULA_F108_RECEIVER}="1"
+ENV{AULA_F108_RECEIVER}=="1", ATTRS{bInterfaceNumber}=="03", TAG+="uaccess"
