@@ -133,8 +133,15 @@ class Keyboard:
                 self._set(step.payload)
                 time.sleep(COMMAND_DELAY)
                 if step.readback:
-                    self._get()
+                    reply = self._get()
                     time.sleep(COMMAND_DELAY)
+                    # commands come back with their first two bytes echoed;
+                    # anything else means the keyboard isn't following along
+                    if (step.payload[0] == 0x04
+                            and reply[:2] != step.payload[:2]):
+                        raise KeyboardError(
+                            "The keyboard didn't confirm the change. Replug "
+                            "the cable and try again.")
                 if progress:
                     progress(i, total)
         except OSError as e:

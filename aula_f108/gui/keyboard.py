@@ -45,6 +45,8 @@ class KeyboardView(Gtk.DrawingArea):
 
     def _hit(self, gesture, x, y):
         unit, left, top = self._geometry()
+        if unit <= 0:
+            return
         key = keys.key_at((x - left) / unit, (y - top) / unit)
         if key is not None and key is not self._last:
             self._last = key

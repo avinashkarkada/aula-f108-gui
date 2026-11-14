@@ -151,6 +151,8 @@ class RemapPage(Gtk.ScrolledWindow):
     def _edited(self, *_):
         if self._loading or self.current is None:
             return
+        if self.current.name in remap.FIXED:
+            return
         self._show_rows()
         kind = self.kind.get_selected()
         name = self.current.name
