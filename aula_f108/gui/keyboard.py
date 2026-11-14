@@ -21,6 +21,7 @@ class KeyboardView(Gtk.DrawingArea):
         super().__init__()
         self.colors = colors
         self.on_key = on_key
+        self.selected = None    # key name to draw a ring around
         self._last = None
         self._origin = (0.0, 0.0)
 
@@ -82,7 +83,13 @@ class KeyboardView(Gtk.DrawingArea):
             cr.arc(x + radius, y + radius, radius, math.pi, 1.5 * math.pi)
             cr.close_path()
             cr.set_source_rgb(*fill)
-            cr.fill()
+            if key.name == self.selected:
+                cr.fill_preserve()
+                cr.set_source_rgb(1, 1, 1)
+                cr.set_line_width(max(2.0, unit * 0.07))
+                cr.stroke()
+            else:
+                cr.fill()
 
             if not key.label:
                 continue

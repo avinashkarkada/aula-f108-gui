@@ -10,9 +10,9 @@ There is a small GTK app and a command line tool. Still a work in progress.
 - switch between the 20 built-in backlight effects and set colour, brightness,
   speed and direction
 - paint individual keys in any colour
+- remap keys to other keys, shortcuts like Ctrl+Shift+C, media controls or
+  mouse buttons
 - set the clock on the keyboard's screen
-
-Planned: key remapping.
 
 ## Requirements
 
@@ -50,6 +50,8 @@ python3 -m aula_f108 light breath --color ff0080 --brightness 4
 python3 -m aula_f108 light rolling --rainbow --speed 2
 python3 -m aula_f108 light off
 python3 -m aula_f108 paint w=00ff00 a=00ff00 s=00ff00 d=00ff00 --all 202020
+python3 -m aula_f108 remap capslock=lctrl pause=media:play
+python3 -m aula_f108 remap --reset
 python3 -m aula_f108 clock
 ```
 
@@ -59,6 +61,11 @@ python3 -m aula_f108 clock
 
 - The keyboard can't be asked for its current settings, it only accepts new
   ones.
+- Remapping always sends the whole table, so `remap` replaces whatever was
+  set before. `remap --reset` puts every key back to normal, which is handy
+  if a remap goes wrong.
+- Only the normal layer can be remapped for now, not the Fn layer. The Fn key
+  itself is left alone on purpose.
 - The light bar above the arrow keys and the side lights aren't reachable from
   software. Use the Fn shortcuts from the manual for those.
 

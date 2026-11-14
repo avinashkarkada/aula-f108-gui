@@ -22,6 +22,7 @@ DEFAULTS = {
         "brush": [0, 210, 255],
         "colors": {},
     },
+    "remap": {},
 }
 
 

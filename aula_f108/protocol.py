@@ -142,6 +142,28 @@ def per_key(colors, brightness=5):
     return steps
 
 
+# --- key remapping ---------------------------------------------------------
+
+def remap(slots):
+    """Replace the remap table. `slots` maps key index -> 4 bytes (see
+    remap.py); keys that are left out go back to normal, so an empty dict
+    resets everything."""
+    table = bytearray(TABLE_SIZE)
+    for index, slot in slots.items():
+        if not 1 <= index <= MAX_SLOT:
+            raise ValueError(f"bad key index {index}")
+        if len(slot) != 4:
+            raise ValueError("a slot is 4 bytes")
+        table[index * 4:index * 4 + 4] = slot
+    # byte order of the trailer is the other way round here
+    table[-2:] = b"\xAA\x55"
+
+    steps = [_begin(), Step(_packet((0x04, 0x11), {8: 0x09}), True)]
+    steps += [Step(chunk, False) for chunk in _chunks(bytes(table))]
+    steps += [_apply(), _finalize(readback=True)]
+    return steps
+
+
 # --- screen ----------------------------------------------------------------
 
 def clock(now):

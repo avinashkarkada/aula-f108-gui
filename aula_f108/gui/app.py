@@ -10,6 +10,7 @@ from gi.repository import Adw, Gio, GLib, Gtk  # noqa: E402
 from .. import device, store  # noqa: E402
 from .lighting import LightingPage  # noqa: E402
 from .perkey import PerKeyPage  # noqa: E402
+from .remapping import RemapPage  # noqa: E402
 from .screen import ScreenPage  # noqa: E402
 
 APP_ID = "io.github.avinashkarkada.AulaF108"
@@ -42,6 +43,8 @@ class Window(Adw.ApplicationWindow):
                        "preferences-color-symbolic")
         self._add_page(PerKeyPage(self), "keys", "Key colours",
                        "input-keyboard-symbolic")
+        self._add_page(RemapPage(self), "remap", "Remap",
+                       "preferences-desktop-keyboard-shortcuts-symbolic")
         self._add_page(ScreenPage(self), "screen", "Screen",
                        "video-display-symbolic")
 

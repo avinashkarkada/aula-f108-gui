@@ -3,6 +3,7 @@ import datetime
 import sys
 
 from . import device, keys, protocol
+from . import remap as remapping
 
 
 def _effect(value):
@@ -71,6 +72,14 @@ def main(argv=None):
                        help="colour for every key not listed")
     paint.add_argument("-b", "--brightness", type=int, default=5)
 
+    remap = sub.add_parser(
+        "remap", help="change what keys send (replaces all earlier remaps)")
+    remap.add_argument("bindings", nargs="*", metavar="KEY=TARGET",
+                       help="for example capslock=lctrl f1=media:play "
+                            "pause=ctrl+shift+c")
+    remap.add_argument("--reset", action="store_true",
+                       help="put every key back to normal")
+
     sub.add_parser("clock", help="set the screen clock to the current time")
 
     args = parser.parse_args(argv)
@@ -90,6 +99,16 @@ def main(argv=None):
                 table = {k.index: args.all for k in keys.KEYS}
             table.update(args.keys)
             _run(protocol.per_key(table, args.brightness), args.dry_run)
+        elif args.command == "remap":
+            if bool(args.bindings) == args.reset:
+                parser.error("give some KEY=TARGET pairs, or --reset")
+            bindings = {}
+            for pair in args.bindings:
+                name, sep, target = pair.partition("=")
+                if not sep:
+                    parser.error(f"expected KEY=TARGET, got {pair!r}")
+                bindings[name.lower()] = target
+            _run(protocol.remap(remapping.table(bindings)), args.dry_run)
         elif args.command == "clock":
             _run(protocol.clock(datetime.datetime.now()), args.dry_run)
     except (device.KeyboardError, ValueError) as e:
