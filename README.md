@@ -54,7 +54,7 @@ Install the udev rule so the keyboard can be reached without root, then unplug
 and replug the cable or the receiver:
 
 ```
-sudo cp udev/70-aula-f108.rules /etc/udev/rules.d/
+sudo cp udev/72-aula-f108.rules /etc/udev/rules.d/
 sudo udevadm control --reload
 ```
 

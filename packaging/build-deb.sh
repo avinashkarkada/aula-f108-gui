@@ -28,7 +28,7 @@ chmod 755 "$root/usr/bin/aula-f108"
 sed -e 's|^Exec=.*|Exec=aula-f108|' -e '/^Path=/d' \
     "$here/data/$id.desktop.in" > "$root/usr/share/applications/$id.desktop"
 cp "$here/data/$id.svg" "$root/usr/share/icons/hicolor/scalable/apps/"
-cp "$here/udev/70-aula-f108.rules" "$root/usr/lib/udev/rules.d/"
+cp "$here/udev/72-aula-f108.rules" "$root/usr/lib/udev/rules.d/"
 cp "$here/LICENSE" "$root/usr/share/doc/aula-f108/copyright"
 
 cat > "$root/DEBIAN/control" <<CONTROL
@@ -46,13 +46,15 @@ Description: Configure the Aula F108 Pro keyboard
  has to be connected with the USB cable while settings are changed.
 CONTROL
 
-# pick up the udev rule without a reboot
+# Pick up the udev rule without a reboot. Access that is being taken away
+# only goes once the keyboard is plugged in again, udev doesn't revoke it
+# from nodes that already exist.
 cat > "$root/DEBIAN/postinst" <<'SH'
 #!/bin/sh
 set -e
 if command -v udevadm >/dev/null 2>&1; then
     udevadm control --reload || true
-    udevadm trigger --subsystem-match=hidraw || true
+    udevadm trigger --action=add --subsystem-match=usb --subsystem-match=hidraw || true
 fi
 SH
 cat > "$root/DEBIAN/postrm" <<'SH'

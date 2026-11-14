@@ -1,0 +1,25 @@
+# Lets the logged-in user configure the Aula F108 Pro without root, and
+# nothing more than that.
+#
+# This file has to sort after 70-uaccess.rules: see the cable section.
+
+# --- on the USB cable ---
+#
+# The keyboard's USB id (0c45:800a) is also in the libgphoto2 camera list,
+# as a "Vivitar Vivicam3350B". Cameras are handed to the logged-in user, so
+# without the middle rule here every node of the keyboard would be open to
+# any program the user runs, including the two interfaces that carry
+# keystrokes and the raw USB device.
+#
+# So: take that access away again, then give back the two interfaces that
+# are needed. 3 is for settings, 2 takes pictures for the screen. The
+# product name check keeps this away from a real camera with the same id.
+ATTRS{idVendor}=="0c45", ATTRS{idProduct}=="800a", ATTRS{product}=="AULA F108Pro", ENV{AULA_F108_CABLE}="1"
+ENV{AULA_F108_CABLE}=="1", TAG-="uaccess"
+ENV{AULA_F108_CABLE}=="1", KERNEL=="hidraw*", ATTRS{bInterfaceNumber}=="02|03", TAG+="uaccess"
+
+# --- through the 2.4G receiver ---
+#
+# Only its settings interface (3).
+KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="05ac", ATTRS{idProduct}=="024f", ENV{AULA_F108_RECEIVER}="1"
+ENV{AULA_F108_RECEIVER}=="1", ATTRS{bInterfaceNumber}=="03", TAG+="uaccess"
