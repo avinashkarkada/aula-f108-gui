@@ -3,8 +3,6 @@
 Configure the Aula F108 Pro keyboard on Linux. The official software only runs
 on Windows.
 
-There is a small GTK app and a command line tool. Still a work in progress.
-
 ![Key colours page](docs/key-colours.png)
 
 | Lighting | Remap | Screen |
@@ -15,7 +13,7 @@ There is a small GTK app and a command line tool. Still a work in progress.
 
 - switch between the 20 built-in backlight effects and set colour, brightness,
   speed and direction
-- paint individual keys in any colour
+- configure per key RGB
 - remap keys to other keys, shortcuts like Ctrl+Shift+C, media controls or
   mouse buttons
 - set the clock on the keyboard's screen
@@ -30,8 +28,7 @@ There is a small GTK app and a command line tool. Still a work in progress.
 - Pillow (`python3-pil`), only for pictures on the screen
 - the keyboard connected with the USB cable (in USB mode) or through its
   2.4G receiver. The app works out which one it is. Bluetooth isn't
-  supported. Settings are stored on the keyboard, so they stay when you
-  switch modes.
+  supported. Settings are stored on the keyboard, so its persistent.
 
 ## Install
 
@@ -160,11 +157,7 @@ python3 -m pytest
 ## Credits
 
 The cable protocol was worked out by Parsia Hakimian in
-[parsiya/f108-pro](https://github.com/parsiya/f108-pro). This project
-reimplements the parts it needs in Python based on those notes. The receiver
-protocol isn't covered there; that part comes from reading how the vendor's
-software talks to the receiver. The frame limit for pictures and what happens
-beyond it are also from his notes; the frame timing I measured myself.
+[parsiya/f108-pro](https://github.com/parsiya/f108-pro).
 
 ## License
 
