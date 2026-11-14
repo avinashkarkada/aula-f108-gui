@@ -7,6 +7,9 @@ work alike:
   cable     64-byte feature reports, sent with two ioctls
   receiver  32-byte reports, plain write() and read()
 
+Pictures for the screen only go over the cable, and their data travels on a
+third interface of its own.
+
 connect() picks whichever is there and gives back an object with the same
 methods either way.
 """
@@ -19,11 +22,12 @@ import threading
 import time
 from collections import namedtuple
 
-from . import protocol, wireless
+from . import lcd, protocol, wireless
 
 WIRED_ID = (0x0C45, 0x800A)
 DONGLE_ID = (0x05AC, 0x024F)   # the 2.4G receiver pretends to be an Apple keyboard
 CONFIG_INTERFACE = 3           # same number on both
+SCREEN_INTERFACE = 2           # cable only, takes the pages of a picture
 
 USB = "usb"
 DONGLE = "dongle"
@@ -35,6 +39,8 @@ COMMAND_DELAY = 0.035
 ECHO_WAIT = 0.25
 RESENDS = 4
 FRAME_GAP = 0.002
+
+PAGE_ACK_WAIT = 1.0
 
 SYSFS_HIDRAW = "/sys/class/hidraw"
 
@@ -77,8 +83,8 @@ def _read(path):
 
 
 def _scan(sysfs=SYSFS_HIDRAW):
-    """Yield (vendor, product, interface, node name) for every hidraw device
-    that sits on USB."""
+    """Yield (vendor, product, interface, node name, usb interface dir) for
+    every hidraw device that sits on USB."""
     for entry in sorted(glob.glob(os.path.join(sysfs, "hidraw*"))):
         hid_dir = os.path.realpath(os.path.join(entry, "device"))
         ids = None
@@ -93,7 +99,8 @@ def _scan(sysfs=SYSFS_HIDRAW):
         iface = _read(os.path.join(os.path.dirname(hid_dir), "bInterfaceNumber"))
         if not iface:
             continue
-        yield ids[0], ids[1], int(iface, 16), os.path.basename(entry)
+        yield (ids[0], ids[1], int(iface, 16), os.path.basename(entry),
+               os.path.dirname(hid_dir))
 
 
 def find(sysfs=SYSFS_HIDRAW):
@@ -103,7 +110,7 @@ def find(sysfs=SYSFS_HIDRAW):
     USB is in USB mode and isn't listening to the receiver.
     """
     dongle = None
-    for vendor, product, iface, node in _scan(sysfs):
+    for vendor, product, iface, node, _ in _scan(sysfs):
         if iface != CONFIG_INTERFACE:
             continue
         if (vendor, product) == WIRED_ID:
@@ -159,6 +166,10 @@ class _Base:
         """Charge in percent, or None when it can't be read."""
         return None
 
+    def show_image(self, data, progress=None):
+        raise KeyboardError("The picture on the screen can only be changed "
+                            "over the USB cable.")
+
 
 class Keyboard(_Base):
     """The keyboard on its USB cable."""
@@ -200,6 +211,79 @@ class Keyboard(_Base):
                             "the cable and try again.")
                 if progress:
                     progress(i, total)
+        except OSError as e:
+            raise KeyboardError(f"Lost contact with the keyboard: {e}") from None
+
+    # --- picture for the screen ---
+
+    def _screen_open(self, sysfs=SYSFS_HIDRAW):
+        for vendor, product, iface, node, usb_dir in _scan(sysfs):
+            if (vendor, product) == WIRED_ID and iface == SCREEN_INTERFACE:
+                break
+        else:
+            raise KeyboardError("The keyboard's screen interface is missing.")
+        # The pages have to leave on an interrupt endpoint. If there is none
+        # the kernel quietly sends them as control transfers instead, and
+        # the firmware crashes on those.
+        endpoints = glob.glob(os.path.join(usb_dir, "ep_*"))
+        if not any(_read(os.path.join(ep, "type")) == "Interrupt"
+                   and _read(os.path.join(ep, "direction")) == "out"
+                   for ep in endpoints):
+            raise KeyboardError("The screen interface looks different from "
+                                "what is expected, not sending anything.")
+        self._screen = _open("/dev/" + node, os.O_RDWR | os.O_NONBLOCK)
+
+    def _screen_close(self):
+        os.close(self._screen)
+
+    def _screen_write(self, page):
+        # The kernel takes a leading zero off as the report id. Without the
+        # extra byte a page that starts with zero would arrive one short.
+        os.write(self._screen, b"\x00" + page)
+
+    def _screen_ack(self, timeout):
+        ready, _, _ = select.select([self._screen], [], [], timeout)
+        if not ready:
+            return None
+        try:
+            return os.read(self._screen, 64)
+        except BlockingIOError:
+            return None
+
+    def _confirmed(self, step):
+        """Send one command and insist on a clear yes."""
+        self._set(step.payload)
+        time.sleep(COMMAND_DELAY)
+        reply = self._get()
+        time.sleep(COMMAND_DELAY)
+        if reply[:2] != step.payload[:2] or reply[3] != 0x01:
+            raise KeyboardError("The keyboard didn't accept the picture. "
+                                "Nothing was changed.")
+
+    def show_image(self, data, progress=None):
+        """Put a picture or animation on the screen. `data` comes from
+        lcd.build(). Stops at the first thing that doesn't look right."""
+        page_count = lcd.check(data)
+        try:
+            self._screen_open()
+            try:
+                while self._screen_ack(0) is not None:
+                    pass
+                for step in protocol.image_start(page_count):
+                    self._confirmed(step)
+                for i, page in enumerate(lcd.pages(data), 1):
+                    self._screen_write(page)
+                    ack = self._screen_ack(PAGE_ACK_WAIT)
+                    if ack is None or ack[:2] != protocol.PAGE_ACK:
+                        raise KeyboardError(
+                            f"The keyboard stopped answering at page {i} of "
+                            f"{page_count}. Upload the picture again.")
+                    if progress:
+                        progress(i, page_count)
+                for step in protocol.image_finish():
+                    self._confirmed(step)
+            finally:
+                self._screen_close()
         except OSError as e:
             raise KeyboardError(f"Lost contact with the keyboard: {e}") from None
 

@@ -19,6 +19,7 @@ There is a small GTK app and a command line tool. Still a work in progress.
 - remap keys to other keys, shortcuts like Ctrl+Shift+C, media controls or
   mouse buttons
 - set the clock on the keyboard's screen
+- put your own picture or GIF on the screen
 
 ## Requirements
 
@@ -26,6 +27,7 @@ There is a small GTK app and a command line tool. Still a work in progress.
 - GTK 4.10+ and libadwaita 1.4+ with their Python bindings for the app. On
   Ubuntu: `sudo apt install python3-gi gir1.2-gtk-4.0 gir1.2-adw-1`. The
   command line tool needs nothing besides Python.
+- Pillow (`python3-pil`), only for pictures on the screen
 - the keyboard connected with the USB cable (in USB mode) or through its
   2.4G receiver. The app works out which one it is. Bluetooth isn't
   supported. Settings are stored on the keyboard, so they stay when you
@@ -39,7 +41,7 @@ Build the package and install it:
 
 ```
 ./packaging/build-deb.sh
-sudo apt install ./dist/aula-f108_0.2.0_all.deb
+sudo apt install ./dist/aula-f108_0.3.0_all.deb
 ```
 
 That pulls in the GTK bits, sets up the udev rule and adds the app to the
@@ -85,13 +87,36 @@ python3 -m aula_f108 paint w=00ff00 a=00ff00 s=00ff00 d=00ff00 --all 202020
 python3 -m aula_f108 remap capslock=lctrl pause=media:play
 python3 -m aula_f108 remap --reset
 python3 -m aula_f108 clock
+python3 -m aula_f108 image cat.gif
 ```
 
 `--dry-run` prints the packets instead of sending them.
 
+## Pictures on the screen
+
+Any picture or GIF can go on the screen. It is scaled and cropped to 240x135.
+This only works over the cable, and bigger animations take a while to send
+(a second or so per five frames).
+
+There is one way to do real damage here, so the limits are fixed in the code:
+
+- The keyboard stores the animation in a slot that holds 141 frames, and it
+  doesn't check what it is sent. Anything beyond the slot overwrites the
+  graphics of the built-in menus, and nobody has found a way to get those
+  back. This program never sends more than 130 frames. Longer animations
+  are thinned out, keeping their running time.
+- Sending stops at the first page the keyboard doesn't confirm.
+
+Frame times are stored in 2 ms steps up to about half a second, so a GIF with
+longer pauses plays those a bit faster than intended.
+
+I have tried this on one keyboard, with stills and short animations. Treat
+it as experimental like the receiver support.
+
 ## Over the 2.4G receiver (experimental)
 
-Everything above also works through the receiver, without the cable, and in
+Everything except pictures for the screen also works through the receiver,
+without the cable, and in
 that mode the app shows the keyboard's battery level too. The receiver uses a
 different protocol from the cable. I worked it out from the vendor's Windows
 software and have only tried it on my own keyboard, so:
@@ -133,7 +158,8 @@ The cable protocol was worked out by Parsia Hakimian in
 [parsiya/f108-pro](https://github.com/parsiya/f108-pro). This project
 reimplements the parts it needs in Python based on those notes. The receiver
 protocol isn't covered there; that part comes from reading how the vendor's
-software talks to the receiver.
+software talks to the receiver. The frame limit for pictures and what happens
+beyond it are also from his notes; the frame timing I measured myself.
 
 ## License
 

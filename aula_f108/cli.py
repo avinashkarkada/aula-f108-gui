@@ -2,7 +2,7 @@ import argparse
 import datetime
 import sys
 
-from . import device, keys, protocol, wireless
+from . import device, keys, lcd, protocol, wireless
 from . import remap as remapping
 
 
@@ -57,6 +57,39 @@ def _run(job, args):
         device.run(job)
 
 
+def _image(args):
+    try:
+        frames, delays, original = lcd.load(args.file)
+    except ImportError:
+        raise device.KeyboardError(
+            "Pictures need Pillow (python3-pil on Debian and Ubuntu).") from None
+    except OSError as e:
+        raise device.KeyboardError(f"Can't read {args.file}: {e}") from None
+    data = lcd.build(frames, delays)
+    page_count = lcd.check(data)
+
+    kind = "picture" if len(frames) == 1 else f"animation, {len(frames)} frames"
+    if original > len(frames):
+        kind += f" (the file has {original}, the keyboard takes {lcd.MAX_FRAMES})"
+    print(f"{args.file}: {kind}, about {lcd.seconds(page_count):.0f}s to send")
+    if args.dry_run:
+        return
+    if not args.yes:
+        answer = input("This replaces what the screen shows now. Go on? [y/N] ")
+        if answer.strip().lower() not in ("y", "yes"):
+            print("left alone")
+            return
+
+    def progress(done, total):
+        print(f"\r{100 * done // total:3d}%", end="", flush=True)
+
+    try:
+        device.run(lambda kb: kb.show_image(data, progress))
+    finally:
+        print()
+    print("done, the keyboard may take a moment to save it")
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(
         prog="aula-f108", description="Configure an Aula F108 Pro keyboard.")
@@ -91,6 +124,12 @@ def main(argv=None):
                             "pause=ctrl+shift+c")
     remap.add_argument("--reset", action="store_true",
                        help="put every key back to normal")
+
+    image = sub.add_parser(
+        "image", help="put a picture or GIF on the screen (USB cable only)")
+    image.add_argument("file")
+    image.add_argument("-y", "--yes", action="store_true",
+                       help="don't ask before replacing the current picture")
 
     sub.add_parser("clock", help="set the screen clock to the current time")
 
@@ -127,6 +166,8 @@ def main(argv=None):
                 bindings[name.lower()] = target
             slots = remapping.table(bindings)
             _run(lambda kb: kb.remap(slots), args)
+        elif args.command == "image":
+            _image(args)
         elif args.command == "clock":
             _run(lambda kb: kb.clock(datetime.datetime.now()), args)
     except (device.KeyboardError, ValueError) as e:

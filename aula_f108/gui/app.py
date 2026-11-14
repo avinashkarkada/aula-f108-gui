@@ -65,15 +65,21 @@ class Window(Adw.ApplicationWindow):
     def _add_page(self, page, name, title, icon):
         self.stack.add_titled_with_icon(page, name, title, icon)
 
-    # pages hand their apply buttons over so they grey out when there is
-    # nothing to talk to
-    def watch_button(self, button):
-        self._buttons.append(button)
-        button.set_sensitive(self.connected and not self.busy)
+    # Pages hand their buttons over so they grey out when there is nothing
+    # to talk to. `cable_only` is for things the receiver can't do, `ready`
+    # for a button that also needs something of its own.
+    def watch_button(self, button, cable_only=False, ready=None):
+        self._buttons.append((button, cable_only, ready))
+        self.refresh_buttons()
 
-    def _refresh_buttons(self):
-        for button in self._buttons:
-            button.set_sensitive(self.connected and not self.busy)
+    def refresh_buttons(self):
+        for button, cable_only, ready in self._buttons:
+            usable = self.connected and not self.busy
+            if cable_only and self.kind != device.USB:
+                usable = False
+            if ready is not None and not ready():
+                usable = False
+            button.set_sensitive(usable)
 
     def _check_connection(self):
         problem = None
@@ -100,7 +106,7 @@ class Window(Adw.ApplicationWindow):
         else:
             self.battery.set_visible(False)
             self._battery_checked = 0.0
-        self._refresh_buttons()
+        self.refresh_buttons()
         return GLib.SOURCE_CONTINUE
 
     def _update_battery(self):
@@ -130,12 +136,13 @@ class Window(Adw.ApplicationWindow):
     def toast(self, text):
         self.toasts.add_toast(Adw.Toast(title=text, timeout=3))
 
-    def send(self, job, done_text, on_done=None):
-        """Run job(keyboard) without freezing the window."""
+    def send(self, job, done_text, on_done=None, after=None):
+        """Run job(keyboard) without freezing the window. `on_done` is
+        called when it worked, `after` either way."""
         if self.busy:
             return
         self.busy = True
-        self._refresh_buttons()
+        self.refresh_buttons()
 
         def work():
             error = None
@@ -147,12 +154,14 @@ class Window(Adw.ApplicationWindow):
 
         def finished(error):
             self.busy = False
-            self._refresh_buttons()
+            self.refresh_buttons()
             self.toast(error or done_text)
             if error is None:
                 store.save(self.settings)
                 if on_done:
                     on_done()
+            if after:
+                after()
             return GLib.SOURCE_REMOVE
 
         threading.Thread(target=work, daemon=True).start()

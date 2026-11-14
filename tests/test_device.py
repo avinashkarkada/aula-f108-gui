@@ -59,10 +59,30 @@ class FakeKeyboard(device.Keyboard):
     """Keyboard that never touches a device. `replies` are handed out for
     each read back; by default it echoes like the real one."""
 
-    def __init__(self, replies=None):
+    def __init__(self, replies=None, lose_page=None, opens=True):
         self.sent = []
         self.replies = replies
         self._fd = None
+        self.pages = []
+        self.lose_page = lose_page
+        self.opens = opens
+        self.closed = 0
+        self._acks = []
+
+    def _screen_open(self, sysfs=None):
+        if not self.opens:
+            raise device.KeyboardError("The keyboard's screen interface is missing.")
+
+    def _screen_close(self):
+        self.closed += 1
+
+    def _screen_write(self, page):
+        self.pages.append(page)
+        if self.lose_page != len(self.pages):
+            self._acks.append(b"\x01\x5a\x02\x00" + bytes(60))
+
+    def _screen_ack(self, timeout):
+        return self._acks.pop(0) if self._acks else None
 
     def _set(self, payload):
         self.sent.append(payload)
@@ -201,3 +221,83 @@ def test_both_kinds_offer_the_same_actions(quick):
         kb.per_key({1: (1, 2, 3)}, 3)
         kb.remap({55: bytes.fromhex("02010000")})
         kb.clock(datetime.datetime(2026, 1, 1))
+
+
+def picture(frames=1):
+    from aula_f108 import lcd
+    Image = pytest.importorskip("PIL.Image")
+    frame = Image.new("RGB", (lcd.WIDTH, lcd.HEIGHT), (255, 0, 0))
+    return lcd.build([frame] * frames)
+
+
+def test_picture_upload():
+    data = picture(2)
+    kb = FakeKeyboard()
+    seen = []
+    kb.show_image(data, progress=lambda done, total: seen.append((done, total)))
+    assert [p[:2].hex() for p in kb.sent] == ["0418", "0472", "0402"]
+    header = kb.sent[1]
+    assert header[2] == 1 and header[8] | header[9] << 8 == 32
+    assert b"".join(kb.pages) == data
+    assert seen[0] == (1, 32) and seen[-1] == (32, 32)
+    assert kb.closed == 1
+
+
+def test_picture_upload_stops_when_the_start_is_not_accepted():
+    # echoes the command but without the "ok" byte
+    kb = FakeKeyboard(replies=[bytes.fromhex("04180000") + bytes(60)])
+    with pytest.raises(device.KeyboardError, match="didn't accept"):
+        kb.show_image(picture())
+    assert kb.pages == []
+    assert kb.closed == 1
+
+
+def test_picture_upload_stops_at_a_page_without_an_answer(monkeypatch):
+    monkeypatch.setattr(device, "PAGE_ACK_WAIT", 0)
+    kb = FakeKeyboard(lose_page=3)
+    with pytest.raises(device.KeyboardError, match="page 3 of 16"):
+        kb.show_image(picture())
+    assert len(kb.pages) == 3
+    assert [p[:2].hex() for p in kb.sent] == ["0418", "0472"]     # no apply
+    assert kb.closed == 1
+
+
+def test_picture_upload_checks_the_buffer_first():
+    from aula_f108 import lcd
+    kb = FakeKeyboard()
+    with pytest.raises(ValueError):
+        kb.show_image(picture()[:-1])
+    too_many = bytearray(picture())
+    too_many[0] = 200
+    with pytest.raises(lcd.TooManyFrames):
+        kb.show_image(bytes(too_many))
+    assert kb.sent == [] and kb.pages == []
+
+
+def test_picture_upload_needs_the_screen_interface():
+    kb = FakeKeyboard(opens=False)
+    with pytest.raises(device.KeyboardError, match="screen interface"):
+        kb.show_image(picture())
+    assert kb.sent == [] and kb.pages == []
+
+
+def test_no_pictures_through_the_receiver(quick):
+    kb = FakeDongle()
+    with pytest.raises(device.KeyboardError, match="USB cable"):
+        kb.show_image(picture())
+    assert kb.written == []
+
+
+def test_screen_interface_needs_an_interrupt_out_endpoint(tmp_path):
+    sysfs = add_hidraw(tmp_path, "hidraw2", 0x0C45, 0x800A, 2)
+    kb = FakeKeyboard()
+    opener = device.Keyboard._screen_open.__get__(kb)
+    with pytest.raises(device.KeyboardError, match="looks different"):
+        opener(sysfs)
+    # an IN endpoint alone isn't enough either
+    usb_if = tmp_path / "devices" / "usb-hidraw2" / "1-1:1.2"
+    (usb_if / "ep_84").mkdir()
+    (usb_if / "ep_84" / "type").write_text("Interrupt\n")
+    (usb_if / "ep_84" / "direction").write_text("in\n")
+    with pytest.raises(device.KeyboardError, match="looks different"):
+        opener(sysfs)

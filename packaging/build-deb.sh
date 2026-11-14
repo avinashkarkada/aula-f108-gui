@@ -37,7 +37,7 @@ Version: $version
 Architecture: all
 Section: utils
 Priority: optional
-Depends: python3 (>= 3.10), python3-gi, gir1.2-gtk-4.0 (>= 4.10), gir1.2-adw-1 (>= 1.4)
+Depends: python3 (>= 3.10), python3-gi, gir1.2-gtk-4.0 (>= 4.10), gir1.2-adw-1 (>= 1.4), python3-pil
 Maintainer: Avinash Karkada Ashok <avinashkarkada@users.noreply.github.com>
 Homepage: https://github.com/avinashkarkada/aula-f108-gui
 Description: Configure the Aula F108 Pro keyboard

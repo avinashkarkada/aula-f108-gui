@@ -199,3 +199,20 @@ def clock(now):
     })
     return [_begin(), Step(_packet((0x04, 0x28), {8: 0x01}), True),
             Step(data, True), _apply()]
+
+
+# --- screen picture --------------------------------------------------------
+
+PAGE_ACK = b"\x01\x5A"   # what comes back on the data interface after a page
+
+
+def image_start(page_count):
+    """Announce a picture of that many 4096-byte pages. The pages themselves
+    then go out on another interface, see device.py."""
+    header = _packet((0x04, 0x72, 0x01),
+                     {8: page_count & 0xFF, 9: page_count >> 8})
+    return [_begin(), Step(header, True)]
+
+
+def image_finish():
+    return [_apply()]
