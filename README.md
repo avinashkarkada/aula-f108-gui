@@ -41,7 +41,7 @@ Build the package and install it:
 
 ```
 ./packaging/build-deb.sh
-sudo apt install ./dist/aula-f108_0.3.0_all.deb
+sudo apt install ./dist/aula-f108_0.3.1_all.deb
 ```
 
 That pulls in the GTK bits, sets up the udev rule and adds the app to the
