@@ -143,6 +143,11 @@ line tool still works there.
   if a remap goes wrong.
 - Only the normal layer can be remapped for now, not the Fn layer. The Fn key
   itself is left alone on purpose.
+- On the cable the keyboard has the same USB id as a camera in the
+  libgphoto2 list, and the system opens cameras to whoever is logged in. That
+  includes the interfaces that carry what you type. The udev rule here takes
+  that access back and leaves only the two interfaces the app needs. It
+  counts from the next time the keyboard is plugged in.
 - The light bar above the arrow keys and the side lights aren't reachable from
   software. Use the Fn shortcuts from the manual for those.
 
