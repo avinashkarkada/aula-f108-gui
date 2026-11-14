@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Aula F108 Pro
+Comment=Lighting, key colours and remapping for the Aula F108 Pro keyboard
+Exec=python3 -m aula_f108
+Path=@DIR@
+Icon=io.github.avinashkarkada.AulaF108
+Terminal=false
+Categories=Settings;HardwareSettings;
+Keywords=keyboard;rgb;backlight;remap;
+StartupWMClass=io.github.avinashkarkada.AulaF108

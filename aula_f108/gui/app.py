@@ -116,5 +116,6 @@ class Application(Adw.Application):
                          flags=Gio.ApplicationFlags.DEFAULT_FLAGS)
 
     def do_activate(self):
+        Gtk.Window.set_default_icon_name(APP_ID)
         window = self.props.active_window or Window(self)
         window.present()

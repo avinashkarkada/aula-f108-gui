@@ -17,9 +17,9 @@ There is a small GTK app and a command line tool. Still a work in progress.
 ## Requirements
 
 - Python 3.10 or newer
-- GTK 4 and libadwaita with their Python bindings for the app. On Ubuntu:
-  `sudo apt install python3-gi gir1.2-gtk-4.0 gir1.2-adw-1`. The command line
-  tool needs nothing besides Python.
+- GTK 4.10+ and libadwaita 1.4+ with their Python bindings for the app. On
+  Ubuntu: `sudo apt install python3-gi gir1.2-gtk-4.0 gir1.2-adw-1`. The
+  command line tool needs nothing besides Python.
 - the keyboard connected with the USB cable and switched to USB mode. Settings
   can't be written over the 2.4G receiver or Bluetooth, but once written they
   stay on the keyboard and keep working wirelessly.
@@ -33,6 +33,14 @@ and replug the cable:
 sudo cp udev/70-aula-f108.rules /etc/udev/rules.d/
 sudo udevadm control --reload
 ```
+
+To get an entry in the app menu (optional, per user, no root needed):
+
+```
+./install.sh
+```
+
+`./install.sh --remove` takes it out again.
 
 ## Usage
 
@@ -56,6 +64,13 @@ python3 -m aula_f108 clock
 ```
 
 `--dry-run` prints the packets instead of sending them.
+
+## Tested on
+
+Ubuntu 24.04 with one keyboard (USB id `0c45:800a`). It should work on other
+distributions that have recent enough GTK and libadwaita, but I haven't tried
+them. Ubuntu 22.04 ships versions that are too old for the app; the command
+line tool still works there.
 
 ## Good to know
 
